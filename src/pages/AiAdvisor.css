@@ -1,0 +1,70 @@
+/* src/pages/AiAdvisor.css */
+.advisor-container {
+  display: flex;
+  height: 100vh;
+  background-color: #f9f9f9;
+}
+
+.chat-box {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.chat-box h2 {
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
+
+.messages {
+  max-height: 70vh;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.message {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.user-msg {
+  background-color: #d1e7ff;
+  align-self: flex-end;
+  text-align: right;
+  margin-left: auto;
+}
+
+.ai-msg {
+  background-color: #e9f7ef;
+  text-align: left;
+}
+
+.input-area {
+  display: flex;
+  gap: 10px;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.input-area button {
+  padding: 12px 20px;
+  background-color: #00c08b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
