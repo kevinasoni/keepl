@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const API_URL = process.env.REACT_APP_API_URL;
 
 const Page = styled.div`
   min-height: 100vh;
@@ -44,11 +47,7 @@ const PlusButton = styled.button`
   align-items: center;
   justify-content: center;
   transition: 0.25s;
-
-  &:hover{
-    transform: scale(1.08);
-    box-shadow: 0 5px 12px rgba(41,144,252,0.4);
-  }
+  &:hover { transform: scale(1.08); box-shadow: 0 5px 12px rgba(41,144,252,0.4); }
 `;
 
 const Label = styled.label`
@@ -66,12 +65,7 @@ const Input = styled.input`
   border: 1px solid #cfd8dc;
   font-size: 0.95rem;
   transition: 0.2s;
-
-  &:focus{
-    outline: none;
-    border-color: #2990fc;
-    box-shadow: 0 0 0 2px rgba(41,144,252,0.15);
-  }
+  &:focus { outline: none; border-color: #2990fc; box-shadow: 0 0 0 2px rgba(41,144,252,0.15); }
 `;
 
 const TextArea = styled.textarea`
@@ -82,17 +76,12 @@ const TextArea = styled.textarea`
   font-size: 0.95rem;
   resize: vertical;
   transition: 0.2s;
-
-  &:focus{
-    outline: none;
-    border-color: #2990fc;
-    box-shadow: 0 0 0 2px rgba(41,144,252,0.15);
-  }
+  &:focus { outline: none; border-color: #2990fc; box-shadow: 0 0 0 2px rgba(41,144,252,0.15); }
 `;
 
 const Button = styled.button`
   margin-top: 1.4rem;
-  background: linear-gradient(90deg,#2990fc,#1a5fc1);
+  background: ${props => props.danger ? '#ef4444' : 'linear-gradient(90deg,#2990fc,#1a5fc1)'};
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -100,12 +89,10 @@ const Button = styled.button`
   cursor: pointer;
   font-size: 0.95rem;
   font-weight: 500;
+  margin-right: 0.5rem;
   transition: 0.25s;
-
-  &:hover{
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(41,144,252,0.3);
-  }
+  &:hover { transform: translateY(-1px); opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const Card = styled.div`
@@ -115,32 +102,38 @@ const Card = styled.div`
   margin-top: 1rem;
   background: #f9fbff;
   transition: 0.25s;
-
-  &:hover{
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  }
-
-  p{
-    margin: 6px 0;
-    color: #334155;
-    font-size: 0.95rem;
-  }
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
+  p { margin: 6px 0; color: #334155; font-size: 0.95rem; }
 `;
 
 const MedicalInfo = () => {
-
-  const navigate = useNavigate();
-
-  const emptyForm = {
-    doctorName: '',
-    prescriptions: '',
-    medicalReportsFile: null
-  };
-
+  const emptyForm = { doctorName: '', prescriptions: '', medicalReportsFile: null };
   const [records, setRecords] = useState([]);
   const [formData, setFormData] = useState(emptyForm);
-  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [showForm, setShowForm] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const token = localStorage.getItem('authToken');
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // ✅ Load records from MongoDB on mount
+  useEffect(() => {
+    fetchRecords();
+  }, []);
+
+  const fetchRecords = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/medical-info`, { headers });
+      const data = await res.json();
+      if (res.ok) {
+        setRecords(data);
+        if (data.length > 0) setShowForm(false);
+      }
+    } catch (err) {
+      toast.error('Failed to load medical records');
+    }
+  };
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -151,97 +144,134 @@ const MedicalInfo = () => {
     setFormData(prev => ({ ...prev, medicalReportsFile: e.target.files[0] }));
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
 
     if (formData.medicalReportsFile && formData.medicalReportsFile.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB.');
+      toast.error('File size must be less than 10MB.');
       return;
     }
 
-    const updated = [...records];
+    setLoading(true);
 
-    if (editingIndex !== null) {
-      updated[editingIndex] = formData;
-    } else {
-      updated.push(formData);
+    try {
+      const form = new FormData();
+      form.append('doctorName', formData.doctorName);
+      form.append('prescriptions', formData.prescriptions);
+      if (formData.medicalReportsFile) {
+        form.append('file', formData.medicalReportsFile);
+      }
+
+      let res;
+      if (editingId) {
+        // ✅ Update existing record
+        res = await fetch(`${API_URL}/api/medical-info/${editingId}`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+      } else {
+        // ✅ Create new record
+        res = await fetch(`${API_URL}/api/medical-info`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+      }
+
+      if (res.ok) {
+        toast.success(editingId ? 'Updated!' : 'Saved!');
+        setFormData(emptyForm);
+        setEditingId(null);
+        setShowForm(false);
+        fetchRecords();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to save');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    } finally {
+      setLoading(false);
     }
-
-    setRecords(updated);
-    setFormData(emptyForm);
-    setEditingIndex(null);
   };
 
-  const handleEdit = index => {
-    setFormData(records[index]);
-    setEditingIndex(index);
+  const handleEdit = (rec) => {
+    setFormData({ doctorName: rec.doctorName, prescriptions: rec.prescriptions, medicalReportsFile: null });
+    setEditingId(rec._id);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/medical-info/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (res.ok) {
+        toast.info('Deleted');
+        fetchRecords();
+      }
+    } catch (err) {
+      toast.error('Failed to delete');
+    }
   };
 
   const handleAddNew = () => {
     setFormData(emptyForm);
-    setEditingIndex(null);
+    setEditingId(null);
+    setShowForm(true);
   };
 
   return (
     <Page>
       <Container>
-
         <BackButton />
-
         <Header>
           <Title>Medical Info</Title>
-          {records.length > 0 && <PlusButton onClick={handleAddNew}>＋</PlusButton>}
+          {records.length > 0 && !showForm && (
+            <PlusButton onClick={handleAddNew}>＋</PlusButton>
+          )}
         </Header>
 
-        {(records.length === 0 || editingIndex !== null) && (
+        {showForm && (
           <form onSubmit={handleSubmit} autoComplete="off">
-
             <Label>Doctor's Name</Label>
-            <Input
-              name="doctorName"
-              value={formData.doctorName}
-              onChange={handleChange}
-              placeholder="Dr. John Doe"
-              required
-            />
+            <Input name="doctorName" value={formData.doctorName} onChange={handleChange}
+              placeholder="Dr. John Doe" required />
 
             <Label>Prescriptions / Notes</Label>
-            <TextArea
-              name="prescriptions"
-              rows="4"
-              value={formData.prescriptions}
-              onChange={handleChange}
-              placeholder="Medications, Dosage, Instructions"
-              required
-            />
+            <TextArea name="prescriptions" rows="4" value={formData.prescriptions}
+              onChange={handleChange} placeholder="Medications, Dosage, Instructions" required />
 
-            <Label>Upload Medical Reports</Label>
-            <Input
-              type="file"
-              accept="application/pdf,image/*"
-              onChange={handleFileChange}
-            />
+            <Label>Upload Medical Reports (PDF/Image, max 10MB)</Label>
+            <Input type="file" accept="application/pdf,image/*" onChange={handleFileChange} />
 
-            <Button type="submit">
-              {editingIndex !== null ? 'Update Medical Info' : 'Save Medical Info'}
-            </Button>
-
+            <div>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Saving...' : editingId ? 'Update Medical Info' : 'Save Medical Info'}
+              </Button>
+              {editingId && (
+                <Button danger type="button" onClick={() => { setEditingId(null); setFormData(emptyForm); setShowForm(false); }}>
+                  Cancel
+                </Button>
+              )}
+            </div>
           </form>
         )}
 
-        {editingIndex === null &&
-          records.map((rec, index) => (
-            <Card key={index}>
-              <p>Doctor: {rec.doctorName}</p>
-              <p>Notes: {rec.prescriptions}</p>
-              <p>
-                Report: {rec.medicalReportsFile ? rec.medicalReportsFile.name : 'Uploaded'}
-              </p>
-              <Button onClick={() => handleEdit(index)}>Edit</Button>
-            </Card>
-          ))}
-
+        {records.map((rec) => (
+          <Card key={rec._id}>
+            <p><strong>Doctor:</strong> {rec.doctorName}</p>
+            <p><strong>Notes:</strong> {rec.prescriptions}</p>
+            <p><strong>Report:</strong> {rec.medicalReport || 'No file uploaded'}</p>
+            <Button onClick={() => handleEdit(rec)}>Edit</Button>
+            <Button danger onClick={() => handleDelete(rec._id)}>Delete</Button>
+          </Card>
+        ))}
       </Container>
+      <ToastContainer position="bottom-right" autoClose={2000} />
     </Page>
   );
 };

@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, Link } from "react-router-dom";
 
-/* Clickable Logo */
+const API_URL = process.env.REACT_APP_API_URL;
+
 const Logo = styled(Link)`
   position: absolute;
   top: 30px;
@@ -15,13 +16,11 @@ const Logo = styled(Link)`
   letter-spacing: 1px;
 `;
 
-// Floating animation
 const floatCard = keyframes`
   0%, 100% { transform: translateY(0);}
   50% { transform: translateY(-16px);}
 `;
 
-// Fade-in animation
 const fadeIn = keyframes`
   from {opacity: 0;}
   to {opacity: 1;}
@@ -67,13 +66,11 @@ const Input = styled.input`
   border-radius: 10px;
   border: 1.5px solid #aab7d1;
   font-size: 1rem;
-
   &:focus {
     border-color: #2990fc;
     box-shadow: 0 0 10px #2990fcaa;
     outline: none;
   }
-
   &:disabled {
     background: #e1e5ec;
     cursor: not-allowed;
@@ -91,12 +88,10 @@ const Button = styled.button`
   border-radius: 12px;
   cursor: pointer;
   position: relative;
-
   &:hover:not(:disabled) {
     background: #ffb300;
     box-shadow: 0 0 16px #ffb300cc;
   }
-
   &:disabled {
     cursor: not-allowed;
     opacity: 0.6;
@@ -116,7 +111,6 @@ const Spinner = styled.div`
   left: 50%;
   margin-top: -11px;
   margin-left: -11px;
-
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -143,27 +137,21 @@ const LoginLink = styled(Link)`
   font-weight: 600;
   margin-left: 6px;
   text-decoration: underline;
-
-  &:hover {
-    color: #1d68d1;
-  }
+  &:hover { color: #1d68d1; }
 `;
 
 const Register = () => {
   const navigate = useNavigate();
-
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const passwordStrongEnough = (pwd) => {
-    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pwd);
-  };
+  const passwordStrongEnough = (pwd) =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pwd);
 
-  const handleChange = (e) => {
+  const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -172,16 +160,15 @@ const Register = () => {
 
     if (!passwordStrongEnough(formData.password)) {
       setError(true);
-      setMessage(
-        "Password must be at least 8 characters long, and include uppercase, lowercase letters, and a number."
-      );
+      setMessage("Password must be at least 8 characters long, and include uppercase, lowercase letters, and a number.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
+      // ✅ Register
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -196,7 +183,8 @@ const Register = () => {
         return;
       }
 
-      const loginRes = await fetch("http://localhost:5000/api/auth/login", {
+      // ✅ Auto-login after register
+      const loginRes = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -206,7 +194,7 @@ const Register = () => {
 
       if (!loginRes.ok) {
         setError(true);
-        setMessage("Registration succeeded but login failed.");
+        setMessage("Registration succeeded but login failed. Please login manually.");
         setLoading(false);
         return;
       }
@@ -217,7 +205,7 @@ const Register = () => {
 
     } catch (err) {
       setError(true);
-      setMessage("Network error: " + err.message);
+      setMessage("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -225,59 +213,26 @@ const Register = () => {
 
   return (
     <RegisterWrapper>
-
-      {/* Clickable Logo */}
       <Logo to="/">KeepLegacy</Logo>
-
       <RegisterBox>
         <Title>Create Your Account</Title>
-
         <form onSubmit={handleSubmit} autoComplete="new-password">
+          <Label htmlFor="name">Full Name</Label>
+          <Input id="name" name="name" type="text" placeholder="Full Name"
+            value={formData.name} onChange={handleChange} required disabled={loading} autoComplete="off" />
 
-  <Label htmlFor="name">Full Name</Label>
-  <Input
-    id="name"
-    name="name"
-    type="text"
-    placeholder="Full Name"
-    value={formData.name || ""}
-    onChange={handleChange}
-    required
-    disabled={loading}
-    autoComplete="off"
-  />
+          <Label htmlFor="email">Email Address</Label>
+          <Input id="email" name="email" type="email" placeholder="Email Address"
+            value={formData.email} onChange={handleChange} required disabled={loading} autoComplete="off" />
 
-  <Label htmlFor="email">Email Address</Label>
-  <Input
-    id="email"
-    name="email"
-    type="email"
-    placeholder="Email Address"
-    value={formData.email || ""}
-    onChange={handleChange}
-    required
-    disabled={loading}
-    autoComplete="off"
-  />
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" name="password" type="password" placeholder="Password"
+            value={formData.password} onChange={handleChange} required disabled={loading} autoComplete="new-password" />
 
-  <Label htmlFor="password">Password</Label>
-  <Input
-    id="password"
-    name="password"
-    type="password"
-    placeholder="Password"
-    value={formData.password || ""}
-    onChange={handleChange}
-    required
-    disabled={loading}
-    autoComplete="new-password"
-  />
-
-  <Button type="submit" disabled={loading}>
-    {loading ? <Spinner /> : "Register"}
-  </Button>
-
-</form>
+          <Button type="submit" disabled={loading}>
+            {loading ? <Spinner /> : "Register"}
+          </Button>
+        </form>
 
         {message && <Message error={error}>{message}</Message>}
 
@@ -285,7 +240,6 @@ const Register = () => {
           Already have an account?
           <LoginLink to="/login">Login</LoginLink>
         </ExistingAccount>
-
       </RegisterBox>
     </RegisterWrapper>
   );

@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+// BankAccounts.js
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const API_URL = process.env.REACT_APP_API_URL;
 
 const Container = styled.div`
   max-width: 600px;
@@ -11,143 +15,119 @@ const Container = styled.div`
   border-radius: 12px;
   box-shadow: 0 0 14px rgba(0,0,0,0.08);
 `;
-
-const Title = styled.h1`
-  margin-bottom: 1.5rem;
-  font-size: 2rem;
-  font-weight: 600;
-  color: #24305e;
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-top: 1.2rem;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #1e293b;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.6rem;
-  border-radius: 5px;
-  border: 1px solid #cfd8dc;
-  margin-bottom: 0.3rem;
-  font-size: 1rem;
-`;
-
+const Title = styled.h1`margin-bottom: 1.5rem; font-size: 2rem; font-weight: 600; color: #24305e;`;
+const Label = styled.label`display: block; margin-top: 1.2rem; margin-bottom: 0.5rem; font-weight: 500; color: #1e293b;`;
+const Input = styled.input`width: 100%; padding: 0.6rem; border-radius: 5px; border: 1px solid #cfd8dc; margin-bottom: 0.3rem; font-size: 1rem;`;
 const Button = styled.button`
   margin-top: 1.5rem;
-  background-color: #2990fc;
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
-
-  &:hover {
-    background-color: #1a5fc1;
-  }
+  background-color: ${props => props.danger ? '#ef4444' : '#2990fc'};
+  color: white; padding: 0.8rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-right: 0.5rem; font-weight: bold;
+  &:hover { opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const Card = styled.div`
+  border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px; margin-top: 1rem; background: #f9fbff;
+  p { margin: 4px 0; color: #334155; }
 `;
 
 const BankAccounts = () => {
-  const [formData, setFormData] = useState({
-    bankName: '',
-    accountNumber: '',
-    ifscCode: '',
-    accountType: '',
-    bankStatementFile: null,
-  });
+  const [records, setRecords] = useState([]);
+  const [formData, setFormData] = useState({ bankName: '', accountNumber: '', ifscCode: '', accountType: '' });
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [showForm, setShowForm] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const navigate = useNavigate();
+  const token = localStorage.getItem('authToken');
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  useEffect(() => { fetchData(); }, []);
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/user-data`, { headers: authHeaders });
+      const data = await res.json();
+      if (res.ok && data.data?.bankAccounts) {
+        setRecords(data.data.bankAccounts);
+        setShowForm(false);
+      }
+    } catch (err) { console.error('Failed to load'); }
   };
 
-  const handleFileChange = (e) => {
-    setFormData(prev => ({ ...prev, bankStatementFile: e.target.files[0] }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (formData.bankStatementFile && formData.bankStatementFile.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB.');
-      return;
-    }
-
-    alert('Bank account details submitted!');
-    console.log('Submitted:', { ...formData, bankStatementFile: formData.bankStatementFile?.name });
-
-    setFormData({
-      bankName: '',
-      accountNumber: '',
-      ifscCode: '',
-      accountType: '',
-      bankStatementFile: null,
+  const saveData = async (updatedRecords) => {
+    const res = await fetch(`${API_URL}/api/user-data`, {
+      headers: authHeaders,
+      method: 'POST',
+      body: JSON.stringify({ bankAccounts: updatedRecords }),
     });
+    return res.ok;
+  };
 
-    // Optionally go back: navigate(-1);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let updated;
+    if (editingIndex !== null) {
+      updated = [...records];
+      updated[editingIndex] = formData;
+    } else {
+      updated = [...records, { ...formData, id: Date.now() }];
+    }
+    const ok = await saveData(updated);
+    if (ok) {
+      toast.success(editingIndex !== null ? 'Updated!' : 'Bank account saved!');
+      setRecords(updated);
+      setFormData({ bankName: '', accountNumber: '', ifscCode: '', accountType: '' });
+      setEditingIndex(null);
+      setShowForm(false);
+    } else {
+      toast.error('Failed to save');
+    }
+    setLoading(false);
+  };
+
+  const handleDelete = async (index) => {
+    const updated = records.filter((_, i) => i !== index);
+    const ok = await saveData(updated);
+    if (ok) { toast.info('Deleted'); setRecords(updated); }
+    else toast.error('Failed to delete');
   };
 
   return (
     <Container>
       <BackButton />
-      <Title>Bank Accounts</Title>
-      <form onSubmit={handleSubmit} autoComplete="off">
-        <Label htmlFor="bankName">Bank Name</Label>
-        <Input
-          id="bankName"
-          name="bankName"
-          type="text"
-          value={formData.bankName}
-          onChange={handleChange}
-          placeholder="e.g. State Bank of India"
-          required
-        />
-        <Label htmlFor="accountNumber">Account Number</Label>
-        <Input
-          id="accountNumber"
-          name="accountNumber"
-          type="text"
-          value={formData.accountNumber}
-          onChange={handleChange}
-          placeholder="Enter account number"
-          required
-        />
-        <Label htmlFor="ifscCode">IFSC Code</Label>
-        <Input
-          id="ifscCode"
-          name="ifscCode"
-          type="text"
-          value={formData.ifscCode}
-          onChange={handleChange}
-          placeholder="e.g. SBIN0000123"
-          required
-        />
-        <Label htmlFor="accountType">Account Type</Label>
-        <Input
-          id="accountType"
-          name="accountType"
-          type="text"
-          value={formData.accountType}
-          onChange={handleChange}
-          placeholder="Savings / Current"
-          required
-        />
-        <Label htmlFor="bankStatementFile">Upload Latest Bank Statement (PDF/Image, max 10MB)</Label>
-        <Input
-          id="bankStatementFile"
-          name="bankStatementFile"
-          type="file"
-          accept="application/pdf,image/*"
-          onChange={handleFileChange}
-        />
-        <Button type="submit">Save Bank Account</Button>
-      </form>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Title>Bank Accounts</Title>
+        {records.length > 0 && !showForm && (
+          <button onClick={() => setShowForm(true)} style={{ background: '#2990fc', color: 'white', border: 'none', borderRadius: '50%', width: 36, height: 36, fontSize: 22, cursor: 'pointer' }}>+</button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} autoComplete="off">
+          <Label>Bank Name</Label>
+          <Input name="bankName" value={formData.bankName} onChange={e => setFormData(p => ({ ...p, bankName: e.target.value }))} placeholder="e.g. State Bank of India" required />
+          <Label>Account Number</Label>
+          <Input name="accountNumber" value={formData.accountNumber} onChange={e => setFormData(p => ({ ...p, accountNumber: e.target.value }))} placeholder="Account number" required />
+          <Label>IFSC Code</Label>
+          <Input name="ifscCode" value={formData.ifscCode} onChange={e => setFormData(p => ({ ...p, ifscCode: e.target.value }))} placeholder="e.g. SBIN0000123" required />
+          <Label>Account Type</Label>
+          <Input name="accountType" value={formData.accountType} onChange={e => setFormData(p => ({ ...p, accountType: e.target.value }))} placeholder="Savings / Current" required />
+          <Button type="submit" disabled={loading}>{loading ? 'Saving...' : editingIndex !== null ? 'Update' : 'Save Bank Account'}</Button>
+          {editingIndex !== null && <Button danger type="button" onClick={() => { setEditingIndex(null); setFormData({ bankName: '', accountNumber: '', ifscCode: '', accountType: '' }); setShowForm(false); }}>Cancel</Button>}
+        </form>
+      )}
+
+      {records.map((r, i) => (
+        <Card key={i}>
+          <p><strong>Bank:</strong> {r.bankName}</p>
+          <p><strong>Account:</strong> {r.accountNumber}</p>
+          <p><strong>IFSC:</strong> {r.ifscCode}</p>
+          <p><strong>Type:</strong> {r.accountType}</p>
+          <Button onClick={() => { setFormData(r); setEditingIndex(i); setShowForm(true); }}>Edit</Button>
+          <Button danger onClick={() => handleDelete(i)}>Delete</Button>
+        </Card>
+      ))}
+      <ToastContainer position="bottom-right" autoClose={2000} />
     </Container>
   );
 };

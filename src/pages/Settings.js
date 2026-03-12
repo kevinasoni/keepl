@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const API_URL = process.env.REACT_APP_API_URL;
 
 const Container = styled.div`
   max-width: 700px;
@@ -32,6 +36,7 @@ const Input = styled.input`
   margin-bottom: 1rem;
   border-radius: 4px;
   border: 1px solid #ccc;
+  &:focus { outline: none; border-color: #2990fc; }
 `;
 
 const ToggleLabel = styled.label`
@@ -46,132 +51,211 @@ const ToggleInput = styled.input`
 `;
 
 const Button = styled.button`
-  background-color: #2990fc;
+  background-color: ${props => props.danger ? '#ef4444' : '#2990fc'};
   color: white;
   border: none;
   padding: 0.7rem 1.2rem;
   border-radius: 4px;
   cursor: pointer;
+  margin-right: 1rem;
+  font-weight: bold;
+  &:hover { opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
 
-  &:hover {
-    background-color: #1a5fc1;
-  }
+const StatusBadge = styled.span`
+  background: #22c55e;
+  color: white;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  margin-left: 1rem;
 `;
 
 const Settings = () => {
-  const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-  });
+  const [profile, setProfile] = useState({ name: '', email: '' });
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [loading, setLoading] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
-  const [security, setSecurity] = useState({
-    twoFactorAuth: false,
-    loginAlerts: false,
-  });
+  const token = localStorage.getItem('authToken');
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
-  const [privacy, setPrivacy] = useState({
-    profileVisibility: true,
-    searchEngineIndexing: false,
-  });
+  // ✅ Load user profile on mount
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-  const handleProfileChange = (e) => {
-    const { name, value } = e.target;
-    setProfile((prev) => ({ ...prev, [name]: value }));
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/profile`, { headers });
+      const data = await res.json();
+      if (res.ok) {
+        setProfile({ name: data.name || '', email: data.email || '' });
+        setProfileLoaded(true);
+      }
+    } catch (err) {
+      console.error('Failed to load profile');
+    }
   };
 
-  const handleSecurityChange = (e) => {
-    const { name, checked } = e.target;
-    setSecurity((prev) => ({ ...prev, [name]: checked }));
-  };
-
-  const handlePrivacyChange = (e) => {
-    const { name, checked } = e.target;
-    setPrivacy((prev) => ({ ...prev, [name]: checked }));
-  };
-
-  const handleSubmit = (e) => {
+  // ✅ Save profile changes
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    // Here, handle saving settings to server or storage
-    alert('Settings saved successfully!');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/profile`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ name: profile.name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Profile updated successfully!');
+      } else {
+        toast.error(data.error || 'Failed to update profile');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Change password
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(passwords.newPassword)) {
+      toast.error('Password must be 8+ characters with uppercase, lowercase and number');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/change-password`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          currentPassword: passwords.currentPassword,
+          newPassword: passwords.newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Password changed successfully!');
+        setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        toast.error(data.error || 'Failed to change password');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Delete account
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/auth/delete-account`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (res.ok) {
+        localStorage.removeItem('authToken');
+        window.location.href = '/home';
+      } else {
+        toast.error('Failed to delete account');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    }
   };
 
   return (
     <Container>
-      <h1>Settings</h1>
-      <form onSubmit={handleSubmit}>
-        {/* Profile Section */}
-        <Section>
-          <SectionTitle>Profile</SectionTitle>
-          <Label htmlFor="name">Full Name</Label>
+      <h1>Settings {profileLoaded && <StatusBadge>Loaded</StatusBadge>}</h1>
+
+      {/* ── Profile Section ── */}
+      <Section>
+        <SectionTitle>Profile</SectionTitle>
+        <form onSubmit={handleProfileSubmit}>
+          <Label>Full Name</Label>
           <Input
-            id="name"
-            name="name"
             type="text"
             value={profile.name}
-            onChange={handleProfileChange}
+            onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))}
             placeholder="Your full name"
             required
           />
-          <Label htmlFor="email">Email Address</Label>
+          <Label>Email Address</Label>
           <Input
-            id="email"
-            name="email"
             type="email"
             value={profile.email}
-            onChange={handleProfileChange}
-            placeholder="your.email@example.com"
+            disabled
+            style={{ background: '#f1f5f9', color: '#888' }}
+          />
+          <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '-0.8rem', marginBottom: '1rem' }}>
+            Email cannot be changed
+          </p>
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Saving...' : 'Save Profile'}
+          </Button>
+        </form>
+      </Section>
+
+      {/* ── Change Password Section ── */}
+      <Section>
+        <SectionTitle>Change Password</SectionTitle>
+        <form onSubmit={handlePasswordSubmit}>
+          <Label>Current Password</Label>
+          <Input
+            type="password"
+            value={passwords.currentPassword}
+            onChange={e => setPasswords(prev => ({ ...prev, currentPassword: e.target.value }))}
+            placeholder="Current password"
             required
           />
-        </Section>
+          <Label>New Password</Label>
+          <Input
+            type="password"
+            value={passwords.newPassword}
+            onChange={e => setPasswords(prev => ({ ...prev, newPassword: e.target.value }))}
+            placeholder="New password (8+ chars, upper, lower, number)"
+            required
+          />
+          <Label>Confirm New Password</Label>
+          <Input
+            type="password"
+            value={passwords.confirmPassword}
+            onChange={e => setPasswords(prev => ({ ...prev, confirmPassword: e.target.value }))}
+            placeholder="Confirm new password"
+            required
+          />
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Changing...' : 'Change Password'}
+          </Button>
+        </form>
+      </Section>
 
-        {/* Security Section */}
-        <Section>
-          <SectionTitle>Security</SectionTitle>
-          <ToggleLabel>
-            <ToggleInput
-              type="checkbox"
-              name="twoFactorAuth"
-              checked={security.twoFactorAuth}
-              onChange={handleSecurityChange}
-            />
-            Enable Two-Factor Authentication (2FA)
-          </ToggleLabel>
-          <ToggleLabel>
-            <ToggleInput
-              type="checkbox"
-              name="loginAlerts"
-              checked={security.loginAlerts}
-              onChange={handleSecurityChange}
-            />
-            Receive Login Alerts
-          </ToggleLabel>
-        </Section>
+      {/* ── Danger Zone ── */}
+      <Section>
+        <SectionTitle style={{ color: '#ef4444', borderColor: '#ef4444' }}>Danger Zone</SectionTitle>
+        <p style={{ color: '#666', marginBottom: '1rem' }}>
+          Deleting your account will permanently remove all your data including beneficiaries, medical info, and all saved records.
+        </p>
+        <Button danger onClick={handleDeleteAccount}>Delete My Account</Button>
+      </Section>
 
-        {/* Privacy Section */}
-        <Section>
-          <SectionTitle>Privacy</SectionTitle>
-          <ToggleLabel>
-            <ToggleInput
-              type="checkbox"
-              name="profileVisibility"
-              checked={privacy.profileVisibility}
-              onChange={handlePrivacyChange}
-            />
-            Make Profile Public
-          </ToggleLabel>
-          <ToggleLabel>
-            <ToggleInput
-              type="checkbox"
-              name="searchEngineIndexing"
-              checked={privacy.searchEngineIndexing}
-              onChange={handlePrivacyChange}
-            />
-            Allow Search Engines to Index My Profile
-          </ToggleLabel>
-        </Section>
-
-        <Button type="submit">Save Settings</Button>
-      </form>
+      <ToastContainer position="bottom-right" autoClose={2000} />
     </Container>
   );
 };
