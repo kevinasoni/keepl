@@ -48,8 +48,15 @@ const Button = styled.button`
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
-  &:hover { opacity: 0.9; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const List = styled.ul`
@@ -75,19 +82,10 @@ const AlarmWrapper = styled.div`
 
 const TimerInput = styled.input`
   padding: 0.5rem;
-  width: 80px;
+  margin: 0.3rem;
+  width: 100px;
   border: 1px solid #ccc;
   border-radius: 8px;
-  text-align: center;
-  font-size: 1rem;
-`;
-
-const TimerLabel = styled.p`
-  margin: 0 0 4px 0;
-  font-size: 0.8rem;
-  color: #666;
-  font-weight: 600;
-  text-align: center;
 `;
 
 const ClockFace = styled.div`
@@ -142,11 +140,9 @@ const Beneficiaries = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Timer states — days, hours, minutes
+  // Timer states
   const [inactivityDays, setInactivityDays] = useState('');
-  const [inactivityHours, setInactivityHours] = useState('');
-  const [inactivityMinutes, setInactivityMinutes] = useState('');
-  const [savedLabel, setSavedLabel] = useState(null);
+  const [savedDays, setSavedDays] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerLoading, setTimerLoading] = useState(false);
 
@@ -155,12 +151,13 @@ const Beneficiaries = () => {
 
   const totalPages = Math.ceil(beneficiaries.length / ITEMS_PER_PAGE);
 
+  // ── Load beneficiaries and inactivity settings on mount
   useEffect(() => {
     fetchBeneficiaries();
     fetchInactivitySettings();
   }, []);
 
-  // ── Restore countdown from localStorage on page load
+  // ── Countdown clock
   useEffect(() => {
     const savedEnd = localStorage.getItem('alarmEnd');
     if (savedEnd) {
@@ -169,7 +166,6 @@ const Beneficiaries = () => {
     }
   }, []);
 
-  // ── Countdown tick
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => {
@@ -185,6 +181,7 @@ const Beneficiaries = () => {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
+  // ── Fetch beneficiaries from MongoDB
   const fetchBeneficiaries = async () => {
     try {
       const res = await fetch(`${API_URL}/api/beneficiaries`, { headers });
@@ -195,64 +192,60 @@ const Beneficiaries = () => {
     }
   };
 
+  // ── Fetch saved inactivity days
   const fetchInactivitySettings = async () => {
     try {
       const res = await fetch(`${API_URL}/api/inactivity-settings`, { headers });
       const data = await res.json();
-      if (res.ok && data.inactivityMinutes) {
-        // ✅ Restore days/hours/minutes from saved total minutes
-        const total = data.inactivityMinutes;
-        const d = Math.floor(total / (24 * 60));
-        const h = Math.floor((total % (24 * 60)) / 60);
-        const m = total % 60;
-        setInactivityDays(d > 0 ? d : '');
-        setInactivityHours(h > 0 ? h : '');
-        setInactivityMinutes(m > 0 ? m : '');
-        setSavedLabel(buildLabel(d, h, m));
-      } else if (res.ok && data.inactivityDays) {
+      if (res.ok && data.inactivityDays) {
+        setSavedDays(data.inactivityDays);
         setInactivityDays(data.inactivityDays);
-        setSavedLabel(`${data.inactivityDays}d`);
       }
     } catch (err) {
       console.error('Failed to fetch inactivity settings');
     }
   };
 
-  const buildLabel = (d, h, m) => {
-    const parts = [];
-    if (d > 0) parts.push(`${d}d`);
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m}m`);
-    return parts.join(' ') || '0';
-  };
-
+  // ── Add or update beneficiary
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!formData.name || !formData.relation || !formData.contact) {
       toast.error('Please fill all fields');
       return;
     }
+
     if (!/^\d{10}$/.test(formData.contact)) {
       toast.error('Contact must be exactly 10 digits');
       return;
     }
+
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       toast.error('Please enter a valid email');
       return;
     }
 
     setLoading(true);
+
     try {
       let res;
+
       if (editingId) {
+        // Update existing
         res = await fetch(`${API_URL}/api/beneficiaries/${editingId}`, {
-          method: 'PUT', headers, body: JSON.stringify(formData)
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(formData)
         });
       } else {
+        // Add new
         res = await fetch(`${API_URL}/api/beneficiaries`, {
-          method: 'POST', headers, body: JSON.stringify(formData)
+          method: 'POST',
+          headers,
+          body: JSON.stringify(formData)
         });
       }
+
       if (res.ok) {
         toast.success(editingId ? 'Updated!' : 'Beneficiary added!');
         setFormData({ name: '', relation: '', contact: '', email: '' });
@@ -262,6 +255,7 @@ const Beneficiaries = () => {
         const data = await res.json();
         toast.error(data.error || 'Failed to save');
       }
+
     } catch (err) {
       toast.error('Network error');
     } finally {
@@ -269,61 +263,60 @@ const Beneficiaries = () => {
     }
   };
 
+  // ── Delete beneficiary
   const handleDelete = async (id) => {
     try {
       const res = await fetch(`${API_URL}/api/beneficiaries/${id}`, {
-        method: 'DELETE', headers
+        method: 'DELETE',
+        headers
       });
-      if (res.ok) { toast.info('Deleted'); fetchBeneficiaries(); }
+
+      if (res.ok) {
+        toast.info('Deleted');
+        fetchBeneficiaries();
+      }
     } catch (err) {
       toast.error('Failed to delete');
     }
   };
 
+  // ── Edit beneficiary
   const handleEdit = (b) => {
     setFormData({ name: b.name, relation: b.relation, contact: b.contact, email: b.email });
     setEditingId(b._id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ Save timer — converts days + hours + minutes to total minutes
+  // ── Save inactivity timer
   const handleSaveTimer = async () => {
-    const d = parseInt(inactivityDays) || 0;
-    const h = parseInt(inactivityHours) || 0;
-    const m = parseInt(inactivityMinutes) || 0;
-
-    if (d === 0 && h === 0 && m === 0) {
-      toast.error('Please enter a valid time');
+    if (!inactivityDays || inactivityDays < 1) {
+      toast.error('Enter valid number of days');
       return;
     }
 
-    if (h > 23) { toast.error('Hours must be 0-23'); return; }
-    if (m > 59) { toast.error('Minutes must be 0-59'); return; }
-
-    const totalMinutes = (d * 24 * 60) + (h * 60) + m;
-
     setTimerLoading(true);
+
     try {
       const res = await fetch(`${API_URL}/api/inactivity-settings`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ inactivityMinutes: totalMinutes })
+        body: JSON.stringify({ inactivityDays: parseInt(inactivityDays) })
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        const label = buildLabel(d, h, m);
-        setSavedLabel(label);
-        // ✅ Start visual countdown
-        const totalSeconds = totalMinutes * 60;
+        setSavedDays(parseInt(inactivityDays));
+        // Start visual countdown
+        const totalSeconds = parseInt(inactivityDays) * 24 * 3600;
         const endTime = Date.now() + totalSeconds * 1000;
         localStorage.setItem('alarmEnd', endTime);
         setTimeLeft(totalSeconds);
-        toast.success(`✅ Timer set for ${label}! Beneficiaries will be emailed if inactive.`);
+        toast.success(`✅ Timer set! Beneficiaries will be emailed if you are inactive for ${inactivityDays} days`);
       } else {
         toast.error(data.error || 'Failed to save timer');
       }
+
     } catch (err) {
       toast.error('Network error');
     } finally {
@@ -331,7 +324,8 @@ const Beneficiaries = () => {
     }
   };
 
-  const handleStopTimer = () => {
+  // ── Stop timer
+  const handleStopTimer = async () => {
     localStorage.removeItem('alarmEnd');
     setTimeLeft(0);
     toast.info('Timer stopped');
@@ -341,13 +335,7 @@ const Beneficiaries = () => {
     const d = Math.floor(sec / (3600 * 24));
     const h = Math.floor((sec % (3600 * 24)) / 3600);
     const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    const parts = [];
-    if (d > 0) parts.push(`${d}d`);
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m}m`);
-    parts.push(`${s}s`);
-    return parts.join(' ');
+    return `${d}d ${h}h ${m}m`;
   };
 
   const getClockRotation = () => {
@@ -381,6 +369,7 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, name: e.target.value.replace(/[0-9]/g, '') }))}
           placeholder="Full name"
         />
+
         <Label>Relation</Label>
         <Input
           name="relation"
@@ -388,6 +377,7 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, relation: e.target.value.replace(/[0-9]/g, '') }))}
           placeholder="e.g. Son, Daughter, Spouse"
         />
+
         <Label>Contact Number</Label>
         <Input
           name="contact"
@@ -396,6 +386,7 @@ const Beneficiaries = () => {
           maxLength={10}
           placeholder="10 digit number"
         />
+
         <Label>Email Address</Label>
         <Input
           name="email"
@@ -404,9 +395,11 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
           placeholder="beneficiary@email.com"
         />
+
         <Button type="submit" disabled={loading}>
           {loading ? 'Saving...' : editingId ? 'Update' : 'Add Beneficiary'}
         </Button>
+
         {editingId && (
           <Button danger type="button" onClick={() => {
             setEditingId(null);
@@ -419,9 +412,11 @@ const Beneficiaries = () => {
 
       {/* ── BENEFICIARIES LIST ── */}
       <Heading>Saved Beneficiaries ({beneficiaries.length})</Heading>
+
       {beneficiaries.length === 0 && (
         <p style={{ color: '#888' }}>No beneficiaries added yet.</p>
       )}
+
       <List>
         {paginatedItems.map((b) => (
           <BeneficiaryCard key={b._id}>
@@ -447,50 +442,23 @@ const Beneficiaries = () => {
       <AlarmWrapper>
         <Heading style={{ marginBottom: '0.5rem' }}>
           Inactivity Reminder
-          {savedLabel && <StatusBadge active>Active: {savedLabel}</StatusBadge>}
+          {savedDays && <StatusBadge active>Active: {savedDays} days</StatusBadge>}
         </Heading>
 
-        <p style={{ color: '#666', marginBottom: '1.5rem' }}>
-          If you don't login for this long, all your beneficiaries will automatically receive an email to check on you.
+        <p style={{ color: '#666', marginBottom: '1rem' }}>
+          If you don't login for this many days, all your beneficiaries will automatically receive an email to check on you.
         </p>
 
-        {/* ✅ Days + Hours + Minutes inputs */}
-        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-          <div>
-            <TimerLabel>Days</TimerLabel>
-            <TimerInput
-              type="number"
-              min="0"
-              placeholder="0"
-              value={inactivityDays}
-              onChange={e => setInactivityDays(e.target.value)}
-            />
-          </div>
-          <div>
-            <TimerLabel>Hours</TimerLabel>
-            <TimerInput
-              type="number"
-              min="0"
-              max="23"
-              placeholder="0"
-              value={inactivityHours}
-              onChange={e => setInactivityHours(e.target.value)}
-            />
-          </div>
-          <div>
-            <TimerLabel>Minutes</TimerLabel>
-            <TimerInput
-              type="number"
-              min="0"
-              max="59"
-              placeholder="0"
-              value={inactivityMinutes}
-              onChange={e => setInactivityMinutes(e.target.value)}
-            />
-          </div>
-        </div>
+        <Label>Number of Inactivity Days</Label>
+        <TimerInput
+          type="number"
+          min="1"
+          placeholder="e.g. 30"
+          value={inactivityDays}
+          onChange={e => setInactivityDays(e.target.value)}
+        />
 
-        <div style={{ marginTop: '1.2rem' }}>
+        <div style={{ marginTop: '1rem' }}>
           <Button onClick={handleSaveTimer} disabled={timerLoading} success>
             {timerLoading ? 'Saving...' : '✅ Set Inactivity Timer'}
           </Button>
