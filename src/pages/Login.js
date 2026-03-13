@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, Link } from "react-router-dom";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 /* Clickable Logo */
 const Logo = styled(Link)`
   position: absolute;
@@ -15,7 +17,6 @@ const Logo = styled(Link)`
   letter-spacing: 1px;
 `;
 
-/* Background */
 const LoginWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -174,7 +175,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      // ✅ FIXED: was localhost:5000, now uses env variable
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -206,7 +208,6 @@ const Login = () => {
   return (
     <LoginWrapper>
 
-      {/* Clickable Logo */}
       <Logo to="/">KeepLegacy</Logo>
 
       <LoginBox>
@@ -214,37 +215,38 @@ const Login = () => {
 
         <form onSubmit={handleSubmit} autoComplete="new-password">
 
-  <Label htmlFor="email">Email Address</Label>
-  <Input
-    id="email"
-    name="email"
-    type="email"
-    placeholder="Email Address"
-    value={formData.email || ""}
-    onChange={handleChange}
-    required
-    disabled={loading}
-    autoComplete="off"
-  />
+          <Label htmlFor="email">Email Address</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="Email Address"
+            value={formData.email || ""}
+            onChange={handleChange}
+            required
+            disabled={loading}
+            autoComplete="off"
+          />
 
-  <Label htmlFor="password">Password</Label>
-  <Input
-    id="password"
-    name="password"
-    type="password"
-    placeholder="Password"
-    value={formData.password || ""}
-    onChange={handleChange}
-    required
-    disabled={loading}
-    autoComplete="new-password"
-  />
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Password"
+            value={formData.password || ""}
+            onChange={handleChange}
+            required
+            disabled={loading}
+            autoComplete="new-password"
+          />
 
-  <Button type="submit" disabled={loading}>
-    {loading ? <Spinner /> : "Login"}
-  </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? <Spinner /> : "Login"}
+          </Button>
 
-</form>
+        </form>
+
         {errorMsg && <Message>{errorMsg}</Message>}
 
         <NoAccount>

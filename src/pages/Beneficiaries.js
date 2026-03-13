@@ -48,15 +48,8 @@ const Button = styled.button`
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
-
-  &:hover {
-    opacity: 0.9;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  &:hover { opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const List = styled.ul`
@@ -82,10 +75,19 @@ const AlarmWrapper = styled.div`
 
 const TimerInput = styled.input`
   padding: 0.5rem;
-  margin: 0.3rem;
-  width: 100px;
+  width: 75px;
   border: 1px solid #ccc;
   border-radius: 8px;
+  text-align: center;
+  font-size: 1rem;
+`;
+
+const TimerLabel = styled.p`
+  margin: 0 0 4px 0;
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
+  text-align: center;
 `;
 
 const ClockFace = styled.div`
@@ -140,39 +142,52 @@ const Beneficiaries = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // Timer states
+  // ✅ Timer states
   const [inactivityDays, setInactivityDays] = useState('');
-  const [savedDays, setSavedDays] = useState(null);
+  const [inactivityHours, setInactivityHours] = useState('');
+  const [inactivityMinutes, setInactivityMinutes] = useState('');
+  const [savedLabel, setSavedLabel] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerLoading, setTimerLoading] = useState(false);
 
   const token = localStorage.getItem('authToken');
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  // ✅ Get userId from token to store timer per-user in localStorage
+  const getUserId = () => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.id || payload._id || payload.userId || 'user';
+    } catch { return 'user'; }
+  };
 
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   const totalPages = Math.ceil(beneficiaries.length / ITEMS_PER_PAGE);
 
-  // ── Load beneficiaries and inactivity settings on mount
   useEffect(() => {
     fetchBeneficiaries();
     fetchInactivitySettings();
   }, []);
 
-  // ── Countdown clock
+  // ✅ Restore countdown from localStorage — per user
   useEffect(() => {
-    const savedEnd = localStorage.getItem('alarmEnd');
+    const userId = getUserId();
+    const savedEnd = localStorage.getItem(`alarmEnd_${userId}`);
     if (savedEnd) {
       const diff = Math.floor((savedEnd - Date.now()) / 1000);
       if (diff > 0) setTimeLeft(diff);
+      else localStorage.removeItem(`alarmEnd_${userId}`);
     }
   }, []);
 
+  // ✅ Countdown tick — fires email when timer hits 0
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          localStorage.removeItem('alarmEnd');
-          toast.info('⏰ Timer ended!');
+          const userId = getUserId();
+          localStorage.removeItem(`alarmEnd_${userId}`);
+          toast.info('⏰ Inactivity timer ended! Notifying beneficiaries...');
+          triggerInactivityEmail();
           return 0;
         }
         return prev - 1;
@@ -181,7 +196,18 @@ const Beneficiaries = () => {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
-  // ── Fetch beneficiaries from MongoDB
+  // ✅ Trigger inactivity email via backend
+  const triggerInactivityEmail = async () => {
+    try {
+      await fetch(`${API_URL}/api/inactivity-settings/trigger-email`, {
+        method: 'POST',
+        headers
+      });
+    } catch (err) {
+      console.error('Failed to trigger inactivity email', err);
+    }
+  };
+
   const fetchBeneficiaries = async () => {
     try {
       const res = await fetch(`${API_URL}/api/beneficiaries`, { headers });
@@ -192,60 +218,63 @@ const Beneficiaries = () => {
     }
   };
 
-  // ── Fetch saved inactivity days
+  // ✅ Fetch inactivity settings and restore days/hours/minutes
   const fetchInactivitySettings = async () => {
     try {
       const res = await fetch(`${API_URL}/api/inactivity-settings`, { headers });
       const data = await res.json();
-      if (res.ok && data.inactivityDays) {
-        setSavedDays(data.inactivityDays);
+      if (res.ok && data.inactivityMinutes) {
+        const total = data.inactivityMinutes;
+        const d = Math.floor(total / (24 * 60));
+        const h = Math.floor((total % (24 * 60)) / 60);
+        const m = total % 60;
+        setInactivityDays(d > 0 ? d : '');
+        setInactivityHours(h > 0 ? h : '');
+        setInactivityMinutes(m > 0 ? m : '');
+        setSavedLabel(buildLabel(d, h, m));
+      } else if (res.ok && data.inactivityDays) {
         setInactivityDays(data.inactivityDays);
+        setSavedLabel(`${data.inactivityDays}d`);
       }
     } catch (err) {
       console.error('Failed to fetch inactivity settings');
     }
   };
 
-  // ── Add or update beneficiary
+  const buildLabel = (d, h, m) => {
+    const parts = [];
+    if (d > 0) parts.push(`${d}d`);
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    return parts.join(' ') || '0';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!formData.name || !formData.relation || !formData.contact) {
       toast.error('Please fill all fields');
       return;
     }
-
     if (!/^\d{10}$/.test(formData.contact)) {
       toast.error('Contact must be exactly 10 digits');
       return;
     }
-
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       toast.error('Please enter a valid email');
       return;
     }
-
     setLoading(true);
-
     try {
       let res;
-
       if (editingId) {
-        // Update existing
         res = await fetch(`${API_URL}/api/beneficiaries/${editingId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(formData)
+          method: 'PUT', headers, body: JSON.stringify(formData)
         });
       } else {
-        // Add new
         res = await fetch(`${API_URL}/api/beneficiaries`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(formData)
+          method: 'POST', headers, body: JSON.stringify(formData)
         });
       }
-
       if (res.ok) {
         toast.success(editingId ? 'Updated!' : 'Beneficiary added!');
         setFormData({ name: '', relation: '', contact: '', email: '' });
@@ -255,7 +284,6 @@ const Beneficiaries = () => {
         const data = await res.json();
         toast.error(data.error || 'Failed to save');
       }
-
     } catch (err) {
       toast.error('Network error');
     } finally {
@@ -263,60 +291,63 @@ const Beneficiaries = () => {
     }
   };
 
-  // ── Delete beneficiary
   const handleDelete = async (id) => {
     try {
       const res = await fetch(`${API_URL}/api/beneficiaries/${id}`, {
-        method: 'DELETE',
-        headers
+        method: 'DELETE', headers
       });
-
-      if (res.ok) {
-        toast.info('Deleted');
-        fetchBeneficiaries();
-      }
+      if (res.ok) { toast.info('Deleted'); fetchBeneficiaries(); }
     } catch (err) {
       toast.error('Failed to delete');
     }
   };
 
-  // ── Edit beneficiary
   const handleEdit = (b) => {
     setFormData({ name: b.name, relation: b.relation, contact: b.contact, email: b.email });
     setEditingId(b._id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ── Save inactivity timer
+  // ✅ Save timer — minimum 1 minute, stores per-user in localStorage
   const handleSaveTimer = async () => {
-    if (!inactivityDays || inactivityDays < 1) {
-      toast.error('Enter valid number of days');
+    const d = parseInt(inactivityDays) || 0;
+    const h = parseInt(inactivityHours) || 0;
+    const m = parseInt(inactivityMinutes) || 0;
+
+    const totalMinutes = (d * 24 * 60) + (h * 60) + m;
+
+    if (totalMinutes < 1) {
+      toast.error('Minimum timer is 1 minute');
       return;
     }
+    if (h > 23) { toast.error('Hours must be 0–23'); return; }
+    if (m > 59) { toast.error('Minutes must be 0–59'); return; }
 
     setTimerLoading(true);
-
     try {
       const res = await fetch(`${API_URL}/api/inactivity-settings`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ inactivityDays: parseInt(inactivityDays) })
+        body: JSON.stringify({ inactivityMinutes: totalMinutes })
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        setSavedDays(parseInt(inactivityDays));
-        // Start visual countdown
-        const totalSeconds = parseInt(inactivityDays) * 24 * 3600;
+        const label = buildLabel(d, h, m);
+        setSavedLabel(label);
+
+        // ✅ Store timer end time per user, not globally
+        const userId = getUserId();
+        const totalSeconds = totalMinutes * 60;
         const endTime = Date.now() + totalSeconds * 1000;
-        localStorage.setItem('alarmEnd', endTime);
+        localStorage.setItem(`alarmEnd_${userId}`, endTime);
         setTimeLeft(totalSeconds);
-        toast.success(`✅ Timer set! Beneficiaries will be emailed if you are inactive for ${inactivityDays} days`);
+
+        toast.success(`✅ Timer set for ${label}! Beneficiaries will be emailed if you are inactive.`);
       } else {
         toast.error(data.error || 'Failed to save timer');
       }
-
     } catch (err) {
       toast.error('Network error');
     } finally {
@@ -324,9 +355,9 @@ const Beneficiaries = () => {
     }
   };
 
-  // ── Stop timer
-  const handleStopTimer = async () => {
-    localStorage.removeItem('alarmEnd');
+  const handleStopTimer = () => {
+    const userId = getUserId();
+    localStorage.removeItem(`alarmEnd_${userId}`);
     setTimeLeft(0);
     toast.info('Timer stopped');
   };
@@ -335,7 +366,13 @@ const Beneficiaries = () => {
     const d = Math.floor(sec / (3600 * 24));
     const h = Math.floor((sec % (3600 * 24)) / 3600);
     const m = Math.floor((sec % 3600) / 60);
-    return `${d}d ${h}h ${m}m`;
+    const s = sec % 60;
+    const parts = [];
+    if (d > 0) parts.push(`${d}d`);
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(' ');
   };
 
   const getClockRotation = () => {
@@ -369,7 +406,6 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, name: e.target.value.replace(/[0-9]/g, '') }))}
           placeholder="Full name"
         />
-
         <Label>Relation</Label>
         <Input
           name="relation"
@@ -377,7 +413,6 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, relation: e.target.value.replace(/[0-9]/g, '') }))}
           placeholder="e.g. Son, Daughter, Spouse"
         />
-
         <Label>Contact Number</Label>
         <Input
           name="contact"
@@ -386,7 +421,6 @@ const Beneficiaries = () => {
           maxLength={10}
           placeholder="10 digit number"
         />
-
         <Label>Email Address</Label>
         <Input
           name="email"
@@ -395,27 +429,20 @@ const Beneficiaries = () => {
           onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
           placeholder="beneficiary@email.com"
         />
-
         <Button type="submit" disabled={loading}>
           {loading ? 'Saving...' : editingId ? 'Update' : 'Add Beneficiary'}
         </Button>
-
         {editingId && (
           <Button danger type="button" onClick={() => {
             setEditingId(null);
             setFormData({ name: '', relation: '', contact: '', email: '' });
-          }}>
-            Cancel
-          </Button>
+          }}>Cancel</Button>
         )}
       </Form>
 
       {/* ── BENEFICIARIES LIST ── */}
       <Heading>Saved Beneficiaries ({beneficiaries.length})</Heading>
-
-      {beneficiaries.length === 0 && (
-        <p style={{ color: '#888' }}>No beneficiaries added yet.</p>
-      )}
+      {beneficiaries.length === 0 && <p style={{ color: '#888' }}>No beneficiaries added yet.</p>}
 
       <List>
         {paginatedItems.map((b) => (
@@ -442,23 +469,50 @@ const Beneficiaries = () => {
       <AlarmWrapper>
         <Heading style={{ marginBottom: '0.5rem' }}>
           Inactivity Reminder
-          {savedDays && <StatusBadge active>Active: {savedDays} days</StatusBadge>}
+          {savedLabel && <StatusBadge active>Active: {savedLabel}</StatusBadge>}
         </Heading>
 
-        <p style={{ color: '#666', marginBottom: '1rem' }}>
-          If you don't login for this many days, all your beneficiaries will automatically receive an email to check on you.
+        <p style={{ color: '#666', marginBottom: '1.5rem' }}>
+          If you are inactive for this long, all your beneficiaries will automatically receive an email. Minimum is 1 minute.
         </p>
 
-        <Label>Number of Inactivity Days</Label>
-        <TimerInput
-          type="number"
-          min="1"
-          placeholder="e.g. 30"
-          value={inactivityDays}
-          onChange={e => setInactivityDays(e.target.value)}
-        />
+        {/* ✅ Days + Hours + Minutes */}
+        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+          <div>
+            <TimerLabel>Days</TimerLabel>
+            <TimerInput
+              type="number"
+              min="0"
+              placeholder="0"
+              value={inactivityDays}
+              onChange={e => setInactivityDays(e.target.value)}
+            />
+          </div>
+          <div>
+            <TimerLabel>Hours (0–23)</TimerLabel>
+            <TimerInput
+              type="number"
+              min="0"
+              max="23"
+              placeholder="0"
+              value={inactivityHours}
+              onChange={e => setInactivityHours(e.target.value)}
+            />
+          </div>
+          <div>
+            <TimerLabel>Minutes (0–59)</TimerLabel>
+            <TimerInput
+              type="number"
+              min="0"
+              max="59"
+              placeholder="0"
+              value={inactivityMinutes}
+              onChange={e => setInactivityMinutes(e.target.value)}
+            />
+          </div>
+        </div>
 
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '1.2rem' }}>
           <Button onClick={handleSaveTimer} disabled={timerLoading} success>
             {timerLoading ? 'Saving...' : '✅ Set Inactivity Timer'}
           </Button>

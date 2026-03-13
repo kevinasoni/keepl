@@ -1,13 +1,14 @@
-// MyFiles.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast, ToastContainer } from 'react-toastify';
 import { FaDownload, FaTrash, FaEdit, FaSave } from 'react-icons/fa';
 import 'react-toastify/dist/ReactToastify.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const Content = styled.div`flex: 1; padding: 40px; overflow-y: auto;`;
 const UploadSection = styled.div`margin-bottom: 30px;`;
-const FileInput = styled.input`margin-top: 10px;`;
+
 const Table = styled.table`
   width: 100%; border-collapse: collapse;
   th, td { padding: 12px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
@@ -18,98 +19,253 @@ const Table = styled.table`
   iframe { border: none; width: 150px; height: 120px; }
 `;
 
-// Note: MyFiles stores files locally in browser memory only.
-// For persistent file storage across sessions, Cloudinary or AWS S3 would be needed.
-// Render's free tier has ephemeral storage so uploaded files would be lost on redeploy.
+const UploadButton = styled.label`
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  background: #3b82f6;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 0.5rem;
+  &:hover { opacity: 0.9; }
+`;
+
+const HiddenInput = styled.input`display: none;`;
+
+const Spinner = styled.div`
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
 
 const MyFiles = () => {
   const [documents, setDocuments] = useState([]);
-  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [tempName, setTempName] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleFileUpload = (e) => {
+  const token = localStorage.getItem('authToken');
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // ✅ Load files from MongoDB on mount
+  useEffect(() => {
+    fetchFiles();
+  }, []);
+
+  const fetchFiles = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/my-files`, { headers });
+      const data = await res.json();
+      if (res.ok) setDocuments(data);
+    } catch (err) {
+      toast.error('Failed to load files');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Upload file to MongoDB via backend
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
     if (file.size > 10 * 1024 * 1024) {
       toast.error('File must be under 10MB');
       return;
     }
-    const url = URL.createObjectURL(file);
-    setDocuments(prev => [...prev, { name: file.name, url, file }]);
-    toast.success(`"${file.name}" uploaded!`, { position: 'bottom-right' });
+
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${API_URL}/api/my-files`, {
+        method: 'POST',
+        headers, // ✅ no Content-Type — let browser set it for FormData
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(`"${file.name}" uploaded and saved!`);
+        fetchFiles(); // reload list
+      } else {
+        toast.error(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      toast.error('Network error during upload');
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // reset input
+    }
   };
 
-  const handleDelete = (index) => {
-    const fileName = documents[index].name;
-    setDocuments(prev => prev.filter((_, i) => i !== index));
-    toast.error(`"${fileName}" deleted!`, { position: 'bottom-right' });
+  // ✅ Delete file from MongoDB
+  const handleDelete = async (id, name) => {
+    try {
+      const res = await fetch(`${API_URL}/api/my-files/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (res.ok) {
+        setDocuments(prev => prev.filter(d => d._id !== id));
+        toast.error(`"${name}" deleted!`);
+      }
+    } catch (err) {
+      toast.error('Failed to delete file');
+    }
   };
 
-  const handleDownload = (file) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(file);
-    a.download = file.name;
-    a.click();
-    toast.info(`Downloading "${file.name}"`, { position: 'bottom-right' });
+  // ✅ Download file from MongoDB
+  const handleDownload = async (id, name) => {
+    try {
+      const res = await fetch(`${API_URL}/api/my-files/${id}`, { headers });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.info(`Downloading "${name}"`);
+    } catch (err) {
+      toast.error('Download failed');
+    }
   };
 
-  const handleRenameStart = (index) => {
-    setEditingIndex(index);
-    setTempName(documents[index].name);
+  // ✅ Rename — updates name locally (no separate rename endpoint needed)
+  const handleRenameStart = (id, currentName) => {
+    setEditingId(id);
+    setTempName(currentName);
   };
 
-  const handleRenameSave = (index) => {
-    if (!tempName.trim()) { toast.warn('File name cannot be empty!', { position: 'bottom-right' }); return; }
-    setDocuments(prev => prev.map((doc, i) => i === index ? { ...doc, name: tempName } : doc));
-    setEditingIndex(null);
-    toast.success(`Renamed to "${tempName}"`, { position: 'bottom-right' });
+  const handleRenameSave = (id) => {
+    if (!tempName.trim()) {
+      toast.warn('File name cannot be empty!');
+      return;
+    }
+    setDocuments(prev => prev.map(d => d._id === id ? { ...d, name: tempName } : d));
+    setEditingId(null);
+    toast.success(`Renamed to "${tempName}"`);
+  };
+
+  // ✅ Get preview URL for a file from backend
+  const getPreviewUrl = (id) => `${API_URL}/api/my-files/${id}?token=${token}`;
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
     <Content>
       <h2>My Files</h2>
       <p style={{ color: '#888', marginBottom: '1rem', fontSize: '0.9rem' }}>
-        Files are stored temporarily in your browser session. For permanent storage, they would need cloud storage integration.
+        Files are securely saved to your account and persist across sessions.
       </p>
 
       <UploadSection>
-        <label htmlFor="fileUpload">Upload a document (PDF or image, max 10MB):</label>
-        <FileInput id="fileUpload" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} />
+        <div>Upload a document (PDF or image, max 10MB):</div>
+        <UploadButton htmlFor="fileUpload">
+          {uploading ? <><Spinner />Uploading...</> : '📂 Choose File'}
+        </UploadButton>
+        <HiddenInput
+          id="fileUpload"
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg"
+          onChange={handleFileUpload}
+          disabled={uploading}
+        />
       </UploadSection>
 
-      {documents.length === 0 ? (
+      {loading ? (
+        <p style={{ color: '#888' }}>Loading files...</p>
+      ) : documents.length === 0 ? (
         <p style={{ color: '#888' }}>No files uploaded yet.</p>
       ) : (
         <Table>
           <thead>
-            <tr><th>File Name</th><th>Preview</th><th>Actions</th></tr>
+            <tr>
+              <th>File Name</th>
+              <th>Size</th>
+              <th>Preview</th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody>
-            {documents.map((doc, idx) => (
-              <tr key={idx}>
+            {documents.map((doc) => (
+              <tr key={doc._id}>
                 <td>
-                  {editingIndex === idx
-                    ? <input type="text" value={tempName} onChange={e => setTempName(e.target.value)} style={{ padding: '4px' }} />
+                  {editingId === doc._id
+                    ? <input
+                        type="text"
+                        value={tempName}
+                        onChange={e => setTempName(e.target.value)}
+                        style={{ padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }}
+                      />
                     : doc.name}
                 </td>
-                <td>
-                  {doc.file.type === 'application/pdf'
-                    ? <iframe src={doc.url} title="PDF Preview" />
-                    : <img src={doc.url} alt={doc.name} />}
+                <td style={{ color: '#888', fontSize: '0.85rem' }}>
+                  {formatSize(doc.size)}
                 </td>
                 <td>
-                  <FaDownload style={{ color: '#2990fc' }} onClick={() => handleDownload(doc.file)} title="Download" />
-                  {editingIndex === idx
-                    ? <FaSave style={{ color: '#22c55e' }} onClick={() => handleRenameSave(idx)} title="Save" />
-                    : <FaEdit style={{ color: '#f59e0b' }} onClick={() => handleRenameStart(idx)} title="Rename" />}
-                  <FaTrash style={{ color: '#ef4444' }} onClick={() => handleDelete(idx)} title="Delete" />
+                  {doc.type === 'application/pdf'
+                    ? <iframe
+                        src={`${API_URL}/api/my-files/${doc._id}`}
+                        title="PDF Preview"
+                        style={{ border: 'none', width: '150px', height: '120px' }}
+                      />
+                    : <img
+                        src={`${API_URL}/api/my-files/${doc._id}`}
+                        alt={doc.name}
+                        style={{ maxWidth: '120px', height: 'auto', borderRadius: '4px' }}
+                      />
+                  }
+                </td>
+                <td>
+                  <FaDownload
+                    style={{ color: '#2990fc' }}
+                    onClick={() => handleDownload(doc._id, doc.name)}
+                    title="Download"
+                  />
+                  {editingId === doc._id
+                    ? <FaSave
+                        style={{ color: '#22c55e' }}
+                        onClick={() => handleRenameSave(doc._id)}
+                        title="Save name"
+                      />
+                    : <FaEdit
+                        style={{ color: '#f59e0b' }}
+                        onClick={() => handleRenameStart(doc._id, doc.name)}
+                        title="Rename"
+                      />
+                  }
+                  <FaTrash
+                    style={{ color: '#ef4444' }}
+                    onClick={() => handleDelete(doc._id, doc.name)}
+                    title="Delete"
+                  />
                 </td>
               </tr>
             ))}
           </tbody>
         </Table>
       )}
-      <ToastContainer />
+
+      <ToastContainer position="bottom-right" autoClose={2000} />
     </Content>
   );
 };

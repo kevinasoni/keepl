@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import DashboardCard from '../components/DashboardCard';
 import { Link } from 'react-router-dom';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 const ContentArea = styled.div`
   background-color: #f9fafb;
   padding: 2rem;
@@ -48,7 +50,8 @@ const Dashboard = () => {
       try {
         const token = localStorage.getItem('authToken');
 
-        const res = await fetch('http://localhost:5000/api/dashboard/summary', {
+        // ✅ FIXED: was localhost:5000
+        const res = await fetch(`${API_URL}/api/dashboard/summary`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
