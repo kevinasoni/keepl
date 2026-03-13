@@ -142,7 +142,6 @@ const Beneficiaries = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Timer states
   const [inactivityDays, setInactivityDays] = useState('');
   const [inactivityHours, setInactivityHours] = useState('');
   const [inactivityMinutes, setInactivityMinutes] = useState('');
@@ -151,7 +150,7 @@ const Beneficiaries = () => {
   const [timerLoading, setTimerLoading] = useState(false);
 
   const token = localStorage.getItem('authToken');
-  // ✅ Get userId from token to store timer per-user in localStorage
+
   const getUserId = () => {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
@@ -167,7 +166,6 @@ const Beneficiaries = () => {
     fetchInactivitySettings();
   }, []);
 
-  // ✅ Restore countdown from localStorage — per user
   useEffect(() => {
     const userId = getUserId();
     const savedEnd = localStorage.getItem(`alarmEnd_${userId}`);
@@ -178,7 +176,6 @@ const Beneficiaries = () => {
     }
   }, []);
 
-  // ✅ Countdown tick — fires email when timer hits 0
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => {
@@ -196,7 +193,6 @@ const Beneficiaries = () => {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
-  // ✅ Trigger inactivity email via backend
   const triggerInactivityEmail = async () => {
     try {
       await fetch(`${API_URL}/api/inactivity-settings/trigger-email`, {
@@ -218,24 +214,23 @@ const Beneficiaries = () => {
     }
   };
 
-  // ✅ Fetch inactivity settings and restore days/hours/minutes
+  // ✅ FIXED: only restores if user actually set a timer (inactivityMinutes > 0)
   const fetchInactivitySettings = async () => {
     try {
       const res = await fetch(`${API_URL}/api/inactivity-settings`, { headers });
       const data = await res.json();
-      if (res.ok && data.inactivityMinutes) {
+
+      if (res.ok && data.inactivityMinutes && data.inactivityMinutes > 0) {
         const total = data.inactivityMinutes;
         const d = Math.floor(total / (24 * 60));
         const h = Math.floor((total % (24 * 60)) / 60);
         const m = total % 60;
-        setInactivityDays(d > 0 ? d : '');
-        setInactivityHours(h > 0 ? h : '');
-        setInactivityMinutes(m > 0 ? m : '');
+        setInactivityDays(d > 0 ? String(d) : '');
+        setInactivityHours(h > 0 ? String(h) : '');
+        setInactivityMinutes(m > 0 ? String(m) : '');
         setSavedLabel(buildLabel(d, h, m));
-      } else if (res.ok && data.inactivityDays) {
-        setInactivityDays(data.inactivityDays);
-        setSavedLabel(`${data.inactivityDays}d`);
       }
+      // ✅ If null or 0 — user hasn't set a timer yet, show nothing
     } catch (err) {
       console.error('Failed to fetch inactivity settings');
     }
@@ -308,7 +303,6 @@ const Beneficiaries = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ Save timer — minimum 1 minute, stores per-user in localStorage
   const handleSaveTimer = async () => {
     const d = parseInt(inactivityDays) || 0;
     const h = parseInt(inactivityHours) || 0;
@@ -336,14 +330,11 @@ const Beneficiaries = () => {
       if (res.ok) {
         const label = buildLabel(d, h, m);
         setSavedLabel(label);
-
-        // ✅ Store timer end time per user, not globally
         const userId = getUserId();
         const totalSeconds = totalMinutes * 60;
         const endTime = Date.now() + totalSeconds * 1000;
         localStorage.setItem(`alarmEnd_${userId}`, endTime);
         setTimeLeft(totalSeconds);
-
         toast.success(`✅ Timer set for ${label}! Beneficiaries will be emailed if you are inactive.`);
       } else {
         toast.error(data.error || 'Failed to save timer');
@@ -359,6 +350,7 @@ const Beneficiaries = () => {
     const userId = getUserId();
     localStorage.removeItem(`alarmEnd_${userId}`);
     setTimeLeft(0);
+    setSavedLabel(null);
     toast.info('Timer stopped');
   };
 
@@ -397,7 +389,6 @@ const Beneficiaries = () => {
     <Content>
       <Heading>{editingId ? 'Edit Beneficiary' : 'Add a Beneficiary'}</Heading>
 
-      {/* ── ADD / EDIT FORM ── */}
       <Form onSubmit={handleSubmit}>
         <Label>Name</Label>
         <Input
@@ -440,7 +431,6 @@ const Beneficiaries = () => {
         )}
       </Form>
 
-      {/* ── BENEFICIARIES LIST ── */}
       <Heading>Saved Beneficiaries ({beneficiaries.length})</Heading>
       {beneficiaries.length === 0 && <p style={{ color: '#888' }}>No beneficiaries added yet.</p>}
 
@@ -465,7 +455,6 @@ const Beneficiaries = () => {
         </div>
       )}
 
-      {/* ── INACTIVITY TIMER ── */}
       <AlarmWrapper>
         <Heading style={{ marginBottom: '0.5rem' }}>
           Inactivity Reminder
@@ -476,7 +465,6 @@ const Beneficiaries = () => {
           If you are inactive for this long, all your beneficiaries will automatically receive an email. Minimum is 1 minute.
         </p>
 
-        {/* ✅ Days + Hours + Minutes */}
         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div>
             <TimerLabel>Days</TimerLabel>
