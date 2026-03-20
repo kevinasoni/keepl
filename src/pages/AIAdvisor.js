@@ -1,12 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import './AiAdvisor.css';
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 function AiAdvisor() {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('chatMessages');
-    return saved ? JSON.parse(saved) : [
-      { sender: 'ai', text: "Hi! I'm your AI advisor powered by Claude. How can I help you with legacy planning, finance, or anything else today?" }
-    ];
+    return saved ? JSON.parse(saved) : [{ sender: 'ai', text: "Hi! I'm your AI advisor. How can I help you today?" }];
   });
   const [userInput, setUserInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,64 +21,41 @@ function AiAdvisor() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!userInput.trim() || loading) return;
+    if (!userInput.trim()) return;
 
-    const userMessage = userInput.trim();
-    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
-    setUserInput('');
+    const token = localStorage.getItem('authToken');
+
+    setMessages(prev => [...prev, { sender: 'user', text: userInput }]);
     setLoading(true);
 
     try {
-      // Build conversation history for context (last 10 messages)
-      const history = messages.slice(-10).map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      }));
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // ✅ localhost replaced with env variable + auth token added
+      const response = await fetch(`${API_URL}/api/ai-chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': process.env.REACT_APP_ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: `You are a helpful AI advisor for KeepLegacy, a legacy management platform. 
-You specialize in helping users with:
-- Legacy and estate planning
-- Financial planning (investments, savings, insurance)
-- Medical and health planning
-- Document organization and management
-- Family and beneficiary planning
-- Tax planning and CIBIL scores
-Keep responses concise, warm, and practical. You are speaking with someone who wants to organize their life and legacy for their loved ones.`,
-          messages: [
-            ...history,
-            { role: 'user', content: userMessage }
-          ]
-        })
+        body: JSON.stringify({ message: userInput.trim() }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.content?.[0]?.text) {
-        setMessages(prev => [...prev, { sender: 'ai', text: data.content[0].text }]);
+      if (response.ok) {
+        setMessages(msgs => [...msgs, { sender: 'ai', text: data.response }]);
       } else {
-        const errMsg = data.error?.message || 'Sorry, I could not respond. Please try again.';
-        setMessages(prev => [...prev, { sender: 'ai', text: errMsg }]);
+        setMessages(msgs => [...msgs, { sender: 'ai', text: data.error || 'Sorry, I could not respond. Please try again.' }]);
       }
     } catch (err) {
-      setMessages(prev => [...prev, { sender: 'ai', text: 'Network error. Please check your connection and try again.' }]);
+      setMessages(msgs => [...msgs, { sender: 'ai', text: 'Network error. Please try again.' }]);
     }
 
+    setUserInput('');
     setLoading(false);
   };
 
   const handleClearChat = () => {
-    const initial = [{ sender: 'ai', text: "Hi! I'm your AI advisor powered by Claude. How can I help you with legacy planning, finance, or anything else today?" }];
+    const initial = [{ sender: 'ai', text: "Hi! I'm your AI advisor. How can I help you today?" }];
     setMessages(initial);
     localStorage.setItem('chatMessages', JSON.stringify(initial));
   };
