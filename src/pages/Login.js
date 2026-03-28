@@ -4,10 +4,25 @@ import { useNavigate, Link } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
+const fadeIn = keyframes`
+  from {opacity: 0;}
+  to {opacity: 1;}
+`;
+
+/* ── NAV (same as Home.js) ── */
+const Nav = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 80px;
+  background: #232b38;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+`;
+
 const Logo = styled(Link)`
-  position: absolute;
-  top: 30px;
-  left: 40px;
   font-family: 'Playfair Display', serif;
   font-size: 2.2rem;
   font-weight: 900;
@@ -23,32 +38,41 @@ const LogoBlue = styled.span`
   color: #2990fc;
 `;
 
+const NavButtons = styled.div`
+  display: flex;
+  gap: 20px;
+`;
+
+const NavButton = styled(Link)`
+  padding: 10px 22px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  transition: 0.25s ease;
+
+  &:hover {
+    background: #ffffff;
+    color: #232b38;
+  }
+`;
+
+/* ── PAGE ── */
 const LoginWrapper = styled.div`
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  background: linear-gradient(160deg, #ffffff 45%, #2990fc 100%);
-`;
-
-const floatCard = keyframes`
-  0%, 100% { transform: translateY(0);}
-  50% { transform: translateY(-16px);}
-`;
-
-const fadeIn = keyframes`
-  from {opacity: 0;}
-  to {opacity: 1;}
+  min-height: calc(100vh - 73px);
+  background: #ffffff;
 `;
 
 const LoginBox = styled.div`
   background: white;
   padding: 3rem 3.6rem;
   border-radius: 14px;
-  box-shadow: 0 14px 40px rgba(41, 144, 252, 0.22);
+  box-shadow: 0 14px 40px rgba(41, 144, 252, 0.18);
   width: 360px;
-  animation: ${floatCard} 4.3s ease-in-out infinite;
 `;
 
 const Title = styled.h2`
@@ -160,21 +184,17 @@ const Login = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const passwordStrongEnough = (pwd) => {
-    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pwd);
-  };
+  const passwordStrongEnough = (pwd) =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pwd);
 
-  const handleChange = (e) => {
+  const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
 
   const handleLogin = async () => {
     setErrorMsg("");
 
     if (!passwordStrongEnough(formData.password)) {
-      setErrorMsg(
-        "Password must be at least 8 characters including uppercase, lowercase, and a number."
-      );
+      setErrorMsg("Password must be at least 8 characters including uppercase, lowercase, and a number.");
       return;
     }
 
@@ -211,60 +231,63 @@ const Login = () => {
   };
 
   return (
-    <LoginWrapper>
+    <>
+      <Nav>
+        <Logo to="/">
+          <LogoYellow>Keep</LogoYellow>
+          <LogoBlue>Legacy</LogoBlue>
+        </Logo>
+        <NavButtons>
+          <NavButton to="/login">Login</NavButton>
+          <NavButton to="/register">Register</NavButton>
+        </NavButtons>
+      </Nav>
 
-      <Logo to="/">
-        <LogoYellow>Keep</LogoYellow>
-        <LogoBlue>Legacy</LogoBlue>
-      </Logo>
+      <LoginWrapper>
+        <LoginBox>
+          <Title>Login to KeepLegacy</Title>
 
-      <LoginBox>
-        <Title>Login to KeepLegacy</Title>
+          <form onSubmit={handleSubmit} autoComplete="new-password">
+            <Label htmlFor="email">Email Address</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="Email Address"
+              value={formData.email || ""}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              autoComplete="off"
+            />
 
-        <form onSubmit={handleSubmit} autoComplete="new-password">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Password"
+              value={formData.password || ""}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              autoComplete="new-password"
+            />
 
-          <Label htmlFor="email">Email Address</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="Email Address"
-            value={formData.email || ""}
-            onChange={handleChange}
-            required
-            disabled={loading}
-            autoComplete="off"
-          />
+            <Button type="submit" disabled={loading}>
+              {loading ? <Spinner /> : "Login"}
+            </Button>
+          </form>
 
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="Password"
-            value={formData.password || ""}
-            onChange={handleChange}
-            required
-            disabled={loading}
-            autoComplete="new-password"
-          />
+          {errorMsg && <Message>{errorMsg}</Message>}
 
-          <Button type="submit" disabled={loading}>
-            {loading ? <Spinner /> : "Login"}
-          </Button>
-
-        </form>
-
-        {errorMsg && <Message>{errorMsg}</Message>}
-
-        <NoAccount>
-          Don't have an account?
-          <RegisterLink to="/register">Register</RegisterLink>
-        </NoAccount>
-
-      </LoginBox>
-
-    </LoginWrapper>
+          <NoAccount>
+            Don't have an account?
+            <RegisterLink to="/register">Register</RegisterLink>
+          </NoAccount>
+        </LoginBox>
+      </LoginWrapper>
+    </>
   );
 };
 
