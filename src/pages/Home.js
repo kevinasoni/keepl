@@ -25,9 +25,16 @@ const Nav = styled.div`
 const Logo = styled(Link)`
   font-family: 'Playfair Display', serif;
   font-size: 2.6rem;
-  color: #1b365d;
   font-weight: 900;
   text-decoration: none;
+`;
+
+const LogoYellow = styled.span`
+  color: #ffc107;
+`;
+
+const LogoBlue = styled.span`
+  color: #2990fc;
 `;
 
 const NavButtons = styled.div`
@@ -198,7 +205,10 @@ const Home = () => {
     <Wrapper>
 
       <Nav>
-        <Logo>KeepLegacy</Logo>
+        <Logo to="/">
+          <LogoYellow>Keep</LogoYellow>
+          <LogoBlue>Legacy</LogoBlue>
+        </Logo>
 
         <NavButtons>
           <Button to="/login">Login</Button>
@@ -252,8 +262,11 @@ const Home = () => {
         <FooterTop>
 
           <FooterCol>
-            <Logo style={{color:"white"}}>KeepLegacy</Logo>
-            <FooterText>
+            <Logo to="/">
+              <LogoYellow>Keep</LogoYellow>
+              <LogoBlue>Legacy</LogoBlue>
+            </Logo>
+            <FooterText style={{ marginTop: "12px" }}>
               Securely organise and protect your digital legacy.
             </FooterText>
           </FooterCol>
