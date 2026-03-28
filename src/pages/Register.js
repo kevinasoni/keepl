@@ -9,10 +9,8 @@ const fadeIn = keyframes`
   to {opacity: 1;}
 `;
 
-/* ── NAV (same as Home.js) ── */
 const Nav = styled.div`
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 22px 80px;
   background: #232b38;
@@ -38,40 +36,19 @@ const LogoBlue = styled.span`
   color: #2990fc;
 `;
 
-const NavButtons = styled.div`
-  display: flex;
-  gap: 20px;
-`;
-
-const NavButton = styled(Link)`
-  padding: 10px 22px;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 600;
-  border: 1px solid #ffffff;
-  color: #ffffff;
-  transition: 0.25s ease;
-
-  &:hover {
-    background: #ffffff;
-    color: #232b38;
-  }
-`;
-
-/* ── PAGE ── */
 const RegisterWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: calc(100vh - 73px);
-  background: #ffffff;
+  background: #232b38;
 `;
 
 const RegisterBox = styled.div`
   background: white;
   padding: 3rem 3.6rem;
   border-radius: 14px;
-  box-shadow: 0 14px 40px rgba(41, 144, 252, 0.18);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.3);
   width: 360px;
 `;
 
@@ -253,10 +230,6 @@ const Register = () => {
           <LogoYellow>Keep</LogoYellow>
           <LogoBlue>Legacy</LogoBlue>
         </Logo>
-        <NavButtons>
-          <NavButton to="/login">Login</NavButton>
-          <NavButton to="/register">Register</NavButton>
-        </NavButtons>
       </Nav>
 
       <RegisterWrapper>
