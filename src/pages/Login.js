@@ -4,7 +4,6 @@ import { useNavigate, Link } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-/* Clickable Logo */
 const Logo = styled(Link)`
   position: absolute;
   top: 30px;
@@ -12,9 +11,16 @@ const Logo = styled(Link)`
   font-family: 'Playfair Display', serif;
   font-size: 2.2rem;
   font-weight: 900;
-  color: white;
   text-decoration: none;
   letter-spacing: 1px;
+`;
+
+const LogoYellow = styled.span`
+  color: #ffc107;
+`;
+
+const LogoBlue = styled.span`
+  color: #2990fc;
 `;
 
 const LoginWrapper = styled.div`
@@ -23,7 +29,7 @@ const LoginWrapper = styled.div`
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: linear-gradient(135deg, #1164e8, #58b6f8, #f8e186);
+  background: linear-gradient(160deg, #ffffff 45%, #2990fc 100%);
 `;
 
 const floatCard = keyframes`
@@ -40,7 +46,7 @@ const LoginBox = styled.div`
   background: white;
   padding: 3rem 3.6rem;
   border-radius: 14px;
-  box-shadow: 0 14px 40px rgba(17, 100, 232, 0.22);
+  box-shadow: 0 14px 40px rgba(41, 144, 252, 0.22);
   width: 360px;
   animation: ${floatCard} 4.3s ease-in-out infinite;
 `;
@@ -48,7 +54,7 @@ const LoginBox = styled.div`
 const Title = styled.h2`
   margin-bottom: 1.3rem;
   text-align: center;
-  color: #1164e8;
+  color: #2990fc;
 `;
 
 const Label = styled.label`
@@ -68,8 +74,8 @@ const Input = styled.input`
   font-size: 1rem;
 
   &:focus {
-    border-color: #1164e8;
-    box-shadow: 0 0 10px #1164e8aa;
+    border-color: #2990fc;
+    box-shadow: 0 0 10px #2990fcaa;
     outline: none;
   }
 
@@ -82,8 +88,8 @@ const Input = styled.input`
 const Button = styled.button`
   width: 100%;
   padding: 0.85rem;
-  background: #1164e8;
-  color: #f8e186;
+  background: #2990fc;
+  color: #ffffff;
   font-weight: 700;
   font-size: 1.1rem;
   border: none;
@@ -92,8 +98,8 @@ const Button = styled.button`
   position: relative;
 
   &:hover:not(:disabled) {
-    background: #0b44b1;
-    box-shadow: 0 0 16px #0b44b1aa;
+    background: #1d68d1;
+    box-shadow: 0 0 16px #1d68d1aa;
   }
 
   &:disabled {
@@ -104,8 +110,8 @@ const Button = styled.button`
 `;
 
 const Spinner = styled.div`
-  border: 3.6px solid #f8e18644;
-  border-top: 3.6px solid #f8e186;
+  border: 3.6px solid #ffffff44;
+  border-top: 3.6px solid #ffffff;
   border-radius: 50%;
   width: 22px;
   height: 22px;
@@ -138,13 +144,13 @@ const NoAccount = styled.p`
 `;
 
 const RegisterLink = styled(Link)`
-  color: #1164e8;
+  color: #2990fc;
   font-weight: 600;
   margin-left: 6px;
   text-decoration: underline;
 
   &:hover {
-    color: #0b44b1;
+    color: #1d68d1;
   }
 `;
 
@@ -175,7 +181,6 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // ✅ FIXED: was localhost:5000, now uses env variable
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -208,7 +213,10 @@ const Login = () => {
   return (
     <LoginWrapper>
 
-      <Logo to="/">KeepLegacy</Logo>
+      <Logo to="/">
+        <LogoYellow>Keep</LogoYellow>
+        <LogoBlue>Legacy</LogoBlue>
+      </Logo>
 
       <LoginBox>
         <Title>Login to KeepLegacy</Title>

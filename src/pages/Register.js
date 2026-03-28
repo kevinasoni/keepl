@@ -11,9 +11,16 @@ const Logo = styled(Link)`
   font-family: 'Playfair Display', serif;
   font-size: 2.2rem;
   font-weight: 900;
-  color: white;
   text-decoration: none;
   letter-spacing: 1px;
+`;
+
+const LogoYellow = styled.span`
+  color: #ffc107;
+`;
+
+const LogoBlue = styled.span`
+  color: #2990fc;
 `;
 
 const floatCard = keyframes`
@@ -32,7 +39,7 @@ const RegisterWrapper = styled.div`
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: linear-gradient(135deg, #2990fc, #5db0ff, #ffc107);
+  background: linear-gradient(160deg, #ffffff 45%, #2990fc 100%);
 `;
 
 const RegisterBox = styled.div`
@@ -167,7 +174,6 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // ✅ Register
       const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,7 +189,6 @@ const Register = () => {
         return;
       }
 
-      // ✅ Auto-login after register
       const loginRes = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -213,7 +218,10 @@ const Register = () => {
 
   return (
     <RegisterWrapper>
-      <Logo to="/">KeepLegacy</Logo>
+      <Logo to="/">
+        <LogoYellow>Keep</LogoYellow>
+        <LogoBlue>Legacy</LogoBlue>
+      </Logo>
       <RegisterBox>
         <Title>Create Your Account</Title>
         <form onSubmit={handleSubmit} autoComplete="new-password">
