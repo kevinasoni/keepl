@@ -15,7 +15,7 @@ const Nav = styled.div`
   justify-content: space-between;
   align-items: center;
   padding: 22px 80px;
-  background: white;
+  background: #232b38;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -47,13 +47,13 @@ const Button = styled(Link)`
   border-radius: 6px;
   text-decoration: none;
   font-weight: 600;
-  border: 1px solid #1b365d;
-  color: #1b365d;
+  border: 1px solid #ffffff;
+  color: #ffffff;
   transition: 0.25s ease;
 
   &:hover {
-    background: #1b365d;
-    color: white;
+    background: #ffffff;
+    color: #232b38;
   }
 `;
 
