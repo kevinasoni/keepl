@@ -185,7 +185,7 @@ const Sidebar = () => {
     localStorage.removeItem('authToken');
     toast.success('You have been logged out successfully!');
     setTimeout(() => {
-      navigate('/');
+      navigate('/');  // ✅ Redirects to Home page
     }, 500);
   };
 
